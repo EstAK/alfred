@@ -1,6 +1,9 @@
 use std::{io::Read, path::PathBuf, process::exit, str::FromStr};
 
 use crossterm::event::{self, KeyCode};
+use crossterm::execute;
+use crossterm::cursor::{MoveUp};
+use crossterm::terminal::{Clear ,ClearType};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -22,9 +25,23 @@ fn main() -> color_eyre::Result<()> {
 
     let app_result = run(&mut terminal, target);
 
+    cleanup()?;
     ratatui::restore();
 
     app_result
+}
+
+fn cleanup() -> std::io::Result<()> {
+    let mut stdout = std::io::stdout();
+
+    // Move to start of inline viewport
+    execute!(
+        stdout,
+        MoveUp(8),
+        Clear(ClearType::FromCursorDown),
+    )?;
+
+    Ok(())
 }
 
 fn strip_ansi(s: &str) -> String {
@@ -142,7 +159,6 @@ pub fn render_list(
         .collect::<Vec<Line>>();
 
     let list = List::new(items)
-        .style(Color::White)
         .highlight_style(Modifier::REVERSED)
         .highlight_symbol("> ");
 
