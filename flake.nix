@@ -26,12 +26,14 @@
             inherit system;
             config = { };
           };
+          alfred = pkgs.callPackage ./default.nix { };
         in
         {
           default = pkgs.mkShell {
             packages = [
               pkgs.rustc
               pkgs.cargo
+              alfred
 
               pkgs.rustfmt
               pkgs.rust-analyzer
