@@ -9,8 +9,8 @@ rustPlatform.buildRustPackage rec {
 
   # Use builtins.fetchGit instead of fetchFromGitHub
   src = builtins.fetchGit {
-    url = "git@github.com:estak/alfred.git";
-    rev = "d4d44297f98d37382d61f918583f627e513b646c"; 
+    url = "https://github.com/EstAK/alfred.git";
+    rev = "47e4289101376c386b54fbdb0691c73799849816"; 
   };
 
   cargoHash = "sha256-2qtBcq1B7cZeCtJ/ag0Dj63QalmPmgE0VZdKnbgROyU=";
