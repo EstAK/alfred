@@ -19,6 +19,19 @@
       ];
     in
     {
+      packages = eachSystem (
+        system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config = { };
+          };
+        in
+        {
+          alfred = pkgs.callPackage ./default.nix { };
+        }
+      );
+
       devShells = eachSystem (
         system:
         let
