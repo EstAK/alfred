@@ -172,15 +172,16 @@ fn render(
     filtered: &[usize],
     query: &str,
 ) {
-    let constraints = [Constraint::Length(1), Constraint::Fill(1)];
-    let layout = Layout::vertical(constraints).spacing(1);
-    let [top, list_area] = frame.area().layout(&layout);
+    let area = frame.area();
+    let constraints = [Constraint::Fill(1), Constraint::Length(1)];
+    let layout = Layout::vertical(constraints);
+    let [list_area, input_area] = area.layout(&layout);
 
-    let title = Line::from_iter([
-        Span::from("search: ").fg(Color::DarkGray),
+    let prompt = Line::from_iter([
+        Span::from("> ").fg(Color::Green),
         Span::from(format!("{}_", query)),
     ]);
-    frame.render_widget(title.centered(), top);
+    frame.render_widget(prompt, input_area);
 
     render_list(frame, list_area, list_state, items, filtered);
 }
