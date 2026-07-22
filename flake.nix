@@ -28,7 +28,7 @@
           };
         in
         {
-          alfred = pkgs.callPackage ./default.nix { };
+          alfred = pkgs.callPackage ./default.nix { src = self.outPath; };
         }
       );
 
