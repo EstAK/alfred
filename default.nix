@@ -11,7 +11,7 @@ rustPlatform.buildRustPackage rec {
   # Use builtins.fetchGit instead of fetchFromGitHub
   inherit src;
 
-  cargoHash = "sha256-2qtBcq1B7cZeCtJ/ag0Dj63QalmPmgE0VZdKnbgROyU=";
+  cargoHash = "sha256-XxkagySCtjGlVWm1pt+4NXefSSyMpXbinGrUA8Kbdrw=";
 
   meta = with lib; {
     description = "A cli for selecting and initializing nix templates";

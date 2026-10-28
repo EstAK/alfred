@@ -27,8 +27,9 @@
             config = { };
           };
         in
-        {
+        rec {
           alfred = pkgs.callPackage ./default.nix { src = self.outPath; };
+          default = alfred;
         }
       );
 

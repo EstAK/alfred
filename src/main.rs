@@ -1,42 +1,118 @@
+use clap::{CommandFactory, Parser};
+use crossterm::cursor::MoveUp;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use crossterm::execute;
-use crossterm::cursor::MoveUp;
 use crossterm::terminal::{Clear, ClearType};
 use ratatui::{
+    DefaultTerminal, Frame, TerminalOptions, Viewport,
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{List, ListState},
-    DefaultTerminal, Frame, TerminalOptions, Viewport,
 };
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "alfred",
+    about = "A cli for selecting and initializing nix templates",
+    version
+)]
+struct Cli {
+    /// Source of the templates (e.g. flake reference like github:nixos/templates or .)
+    #[arg(value_name = "SOURCE", conflicts_with = "source_flag")]
+    source: Option<String>,
+
+    /// Name of the template to initialize (enables non-interactive mode)
+    #[arg(value_name = "TEMPLATE", conflicts_with = "template_flag")]
+    template: Option<String>,
+
+    /// Source of the templates (flake reference)
+    #[arg(short = 's', long = "source", value_name = "SOURCE")]
+    source_flag: Option<String>,
+
+    /// Name of the template to initialize
+    #[arg(
+        short = 't',
+        long = "template",
+        visible_alias = "name",
+        value_name = "TEMPLATE"
+    )]
+    template_flag: Option<String>,
+
+    /// Run in non-interactive mode
+    #[arg(short = 'n', long = "non-interactive")]
+    non_interactive: bool,
+}
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    let target = std::env::args()
-        .nth(1)
-        .expect("Please provide a nix template repo");
+    let args = Cli::parse();
 
-    let mut terminal = ratatui::init_with_options(TerminalOptions {
-        viewport: Viewport::Inline(9),
-    });
+    let source = match args.source.or(args.source_flag) {
+        Some(s) => s,
+        None => {
+            let mut cmd = Cli::command();
+            cmd.error(
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "the following required arguments were not provided:\n  <SOURCE> or --source <SOURCE>",
+            )
+            .exit();
+        }
+    };
 
-    let app_result = run(&mut terminal, target);
+    let template = args.template.or(args.template_flag);
 
-    cleanup()?;
-    ratatui::restore();
+    if args.non_interactive && template.is_none() {
+        let mut cmd = Cli::command();
+        cmd.error(
+            clap::error::ErrorKind::MissingRequiredArgument,
+            "template name must be provided in non-interactive mode (specify <TEMPLATE> or --template <TEMPLATE>)",
+        )
+        .exit();
+    }
 
-    app_result
+    if let Some(template_name) = template {
+        init_template(&source, &template_name)?;
+    } else {
+        let mut terminal = ratatui::init_with_options(TerminalOptions {
+            viewport: Viewport::Inline(9),
+        });
+
+        let app_result = run(&mut terminal, &source);
+
+        cleanup()?;
+        ratatui::restore();
+
+        if let Some(template_name) = app_result? {
+            init_template(&source, &template_name)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn init_template(target: &str, name: &str) -> color_eyre::Result<()> {
+    let status = std::process::Command::new("nix")
+        .args([
+            "flake",
+            "init",
+            "-t",
+            format!("{}#{}", target, name).as_str(),
+        ])
+        .status()?;
+
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
+    }
+
+    Ok(())
 }
 
 fn cleanup() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
 
-    execute!(
-        stdout,
-        MoveUp(9),
-        Clear(ClearType::FromCursorDown),
-    )?;
+    execute!(stdout, MoveUp(9), Clear(ClearType::FromCursorDown),)?;
 
     Ok(())
 }
@@ -79,14 +155,14 @@ fn fuzzy_match(query: &str, target: &str) -> bool {
     next_query_char.is_none()
 }
 
-fn run(terminal: &mut DefaultTerminal, target: String) -> color_eyre::Result<()> {
+fn run(terminal: &mut DefaultTerminal, target: &str) -> color_eyre::Result<Option<String>> {
     terminal.clear()?;
     let mut list_state = ListState::default().with_selected(Some(0));
     let mut search_query = String::new();
 
     let output = strip_ansi(&String::from_utf8(
         std::process::Command::new("nix")
-            .args(["flake", "show", target.as_str()])
+            .args(["flake", "show", target])
             .output()?
             .stdout,
     )?)
@@ -117,9 +193,7 @@ fn run(terminal: &mut DefaultTerminal, target: String) -> color_eyre::Result<()>
             }
         }
 
-        terminal.draw(|frame| {
-            render(frame, &mut list_state, &output, &filtered, &search_query)
-        })?;
+        terminal.draw(|frame| render(frame, &mut list_state, &output, &filtered, &search_query))?;
 
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
@@ -135,22 +209,14 @@ fn run(terminal: &mut DefaultTerminal, target: String) -> color_eyre::Result<()>
                     if let Some(selected) = list_state.selected() {
                         if let Some(&idx) = filtered.get(selected) {
                             let (name, _) = &output[idx];
-                            std::process::Command::new("nix")
-                                .args([
-                                    "flake",
-                                    "init",
-                                    "-t",
-                                    format!("{}#{}", target, name).as_str(),
-                                ])
-                                .status()?;
-                            break Ok(());
+                            break Ok(Some(name.clone()));
                         }
                     }
                 }
                 KeyCode::Char('q') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    break Ok(())
+                    break Ok(None);
                 }
-                KeyCode::Esc => break Ok(()),
+                KeyCode::Esc => break Ok(None),
                 KeyCode::Backspace => {
                     search_query.pop();
                     list_state.select(Some(0));
